@@ -1,0 +1,6 @@
+- id: migration-guard
+  name: MigrationGuard
+  description: Flag risky database migrations before you commit them.
+  entry: migration-guard check
+  language: python
+  files: \.sql$

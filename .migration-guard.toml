@@ -1,0 +1,10 @@
+# Example configuration (all keys optional).
+dialect = "postgres"
+include = ["examples/migrations/**/*.sql"]
+exclude = []
+fail_on = "error"
+disable = []
+
+[severity]
+# Promote a rule for this repo, e.g. treat non-concurrent index builds as blocking:
+# MG005 = "error"

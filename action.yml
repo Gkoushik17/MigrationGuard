@@ -1,0 +1,58 @@
+name: MigrationGuard
+description: Flag risky database migrations in pull requests before review.
+branding:
+  icon: shield
+  color: orange
+
+inputs:
+  paths:
+    description: Files or directories to check. Empty = the 'include' globs from config.
+    default: ""
+  fail-on:
+    description: Lowest severity that fails the check (info, warning, error).
+    default: error
+  base-ref:
+    description: >-
+      Only check migrations changed since this ref. Defaults to the PR base branch;
+      set to "" to check every migration.
+    default: origin/${{ github.base_ref }}
+  config:
+    description: Path to a TOML config file.
+    default: ""
+  sarif-file:
+    description: Also write a SARIF report here (upload it with github/codeql-action/upload-sarif).
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install MigrationGuard
+      shell: bash
+      run: pip install --quiet "${{ github.action_path }}"
+    - name: Check migrations
+      shell: bash
+      env:
+        INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_SARIF: ${{ inputs.sarif-file }}
+      run: |
+        common=(--fail-on "$INPUT_FAIL_ON")
+        # "origin/" alone means there is no PR base (e.g. a push build): check everything.
+        if [ -n "$INPUT_BASE_REF" ] && [ "$INPUT_BASE_REF" != "origin/" ]; then
+          git fetch --no-tags --depth=200 origin "${INPUT_BASE_REF#origin/}" 2>/dev/null || true
+          common+=(--changed-since "$INPUT_BASE_REF")
+        fi
+        if [ -n "$INPUT_CONFIG" ]; then common+=(--config "$INPUT_CONFIG"); fi
+        # Paths are intentionally word-split.
+        # shellcheck disable=SC2086
+        if [ -n "$INPUT_SARIF" ]; then
+          migration-guard check "${common[@]}" --format sarif -o "$INPUT_SARIF" $INPUT_PATHS || true
+        fi
+        # shellcheck disable=SC2086
+        migration-guard check "${common[@]}" --format github \
+          --summary-file "$GITHUB_STEP_SUMMARY" $INPUT_PATHS
